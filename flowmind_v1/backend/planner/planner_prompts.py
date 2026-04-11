@@ -11,8 +11,8 @@ Available connectors:
 {available_connectors}
 
 Output schema requirements:
-- nodes: array of objects with {id, connector, tool_name, input}
-- edges: array of objects with {from, to}
-- confidence: object with {overall, rationale}
-- warnings: array of objects with {code, message}
+- nodes: array of objects with {{id, connector, tool_name, input}}
+- edges: array of objects with {{from, to}}
+- confidence: object with {{overall, rationale}}
+- warnings: array of objects with {{code, message}}
 """.strip()

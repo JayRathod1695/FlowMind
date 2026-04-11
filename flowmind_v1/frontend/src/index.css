@@ -1,0 +1,130 @@
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #ffffff;
+  --color-secondary: #e5e5e5;
+  --color-cta: #007aff;
+  --color-background: #888888;
+  --color-text: #000000;
+
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  --space-3xl: 4rem;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+
+  --font-heading: "Lora", serif;
+  --font-body: "Raleway", sans-serif;
+
+  --background: var(--color-background);
+  --foreground: var(--color-text);
+  --card: var(--color-secondary);
+  --card-foreground: var(--color-text);
+  --popover: var(--color-primary);
+  --popover-foreground: var(--color-text);
+  --primary: var(--color-cta);
+  --primary-foreground: var(--color-text);
+  --secondary: var(--color-primary);
+  --secondary-foreground: var(--color-text);
+  --muted: #d3d3d3;
+  --muted-foreground: #1f1f1f;
+  --accent: var(--color-cta);
+  --accent-foreground: var(--color-primary);
+  --destructive: #b42318;
+  --border: #afafaf;
+  --input: #cfcfcf;
+  --ring: var(--color-cta);
+  --chart-1: #007aff;
+  --chart-2: #0f9d58;
+  --chart-3: #f59e0b;
+  --chart-4: #ef4444;
+  --chart-5: #ffffff;
+  --radius: 0.75rem;
+  --sidebar: var(--color-secondary);
+  --sidebar-foreground: var(--color-text);
+  --sidebar-primary: var(--color-cta);
+  --sidebar-primary-foreground: var(--color-text);
+  --sidebar-accent: var(--color-primary);
+  --sidebar-accent-foreground: var(--color-text);
+  --sidebar-border: #afafaf;
+  --sidebar-ring: var(--color-cta);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+html {
+  font-family: var(--font-body);
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  color: var(--foreground);
+  background: var(--background);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-family: var(--font-heading);
+  color: var(--foreground);
+}
+
+p {
+  margin: 0;
+}
+
+a,
+button,
+[role='button'] {
+  cursor: pointer;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

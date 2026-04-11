@@ -30,8 +30,10 @@ DEBUG: Final[bool] = _read_bool("DEBUG", False)
 DB_PATH: Final[str] = _read_env("DB_PATH", "./flowmind.db")
 
 LLM_API_KEY: Final[str] = _read_env("LLM_API_KEY")
-LLM_BASE_URL: Final[str] = _read_env("LLM_BASE_URL", "https://api.openai.com/v1")
-LLM_MODEL: Final[str] = _read_env("LLM_MODEL", "gpt-4o-mini")
+LLM_BASE_URL: Final[str] = _read_env(
+    "LLM_BASE_URL", "https://integrate.api.nvidia.com/v1"
+)
+LLM_MODEL: Final[str] = _read_env("LLM_MODEL", "qwen/qwen3.5-122b-a10b")
 
 TOKEN_ENCRYPTION_KEY: Final[str] = _read_env("TOKEN_ENCRYPTION_KEY")
 
