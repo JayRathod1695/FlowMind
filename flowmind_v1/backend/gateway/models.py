@@ -26,3 +26,9 @@ class ConnectRequest(BaseModel):
 
 class DisconnectRequest(BaseModel):
 	user_id: str = Field(..., min_length=1, max_length=120)
+
+
+class FrontendLogRequest(BaseModel):
+	event: str = Field(..., min_length=1, max_length=120)
+	metadata: dict[str, Any] = Field(default_factory=dict)
+	timestamp: str | None = None

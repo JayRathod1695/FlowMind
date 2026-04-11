@@ -7,6 +7,7 @@ from typing import AsyncIterator
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from gateway.models import FrontendLogRequest
 from gateway.response_helpers import success_response
 from log_service import query_logs, subscribe, unsubscribe, write_log
 
@@ -50,6 +51,21 @@ async def stream_logs(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
+
+
+@router.post("/api/logs")
+@router.post("/logs")
+async def ingest_frontend_log(payload: FrontendLogRequest) -> JSONResponse:
+    await write_log(
+        "INFO",
+        "frontend",
+        payload.event,
+        {
+            "metadata": payload.metadata,
+            "client_timestamp": payload.timestamp,
+        },
+    )
+    return success_response({"accepted": True}, status_code=202)
 
 
 @router.get("/api/logs/query")

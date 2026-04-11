@@ -34,9 +34,14 @@ async def generate_workflow(request: GenerateDAGRequest) -> JSONResponse:
             "planner_unavailable",
             {"error_type": type(error).__name__, "message": str(error)},
         )
+        message = "Planner service unavailable"
+        if "LLM_API_KEY is not configured" in str(error):
+            message = (
+                "Planner is not configured. Set LLM_API_KEY in backend .env and restart backend."
+            )
         return error_response(
             PLANNER_UNAVAILABLE,
-            "Planner service unavailable",
+            message,
             503,
         )
     except ParseError as error:
