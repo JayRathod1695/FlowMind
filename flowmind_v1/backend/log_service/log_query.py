@@ -1,21 +1,32 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
-import aiosqlite
-
-from config import DB_PATH
+from config import LOG_FILE_PATH
 
 
-def _decode_data(raw_data: str | None) -> dict[str, Any] | None:
-    if raw_data is None:
-        return None
-    try:
-        parsed = json.loads(raw_data)
-        return parsed if isinstance(parsed, dict) else {"value": parsed}
-    except json.JSONDecodeError:
-        return {"value": raw_data}
+def _log_file_path() -> Path:
+    resolved = Path(LOG_FILE_PATH).expanduser()
+    if resolved.is_absolute():
+        return resolved
+    return Path(__file__).resolve().parents[1] / resolved
+
+
+def _is_match(
+    entry: dict[str, Any],
+    level: str | None,
+    subsystem: str | None,
+    from_time: str | None,
+) -> bool:
+    if level is not None and str(entry.get("level", "")) != level:
+        return False
+    if subsystem is not None and str(entry.get("subsystem", "")) != subsystem:
+        return False
+    if from_time is not None and str(entry.get("timestamp", "")) < from_time:
+        return False
+    return True
 
 
 async def query_logs(
@@ -25,55 +36,29 @@ async def query_logs(
     limit: int = 100,
 ) -> list[dict[str, Any]]:
     try:
-        where_clauses: list[str] = []
-        parameters: list[Any] = []
+        max_limit = max(1, min(limit, 1000))
+        log_path = _log_file_path()
 
-        if level is not None:
-            where_clauses.append("level = ?")
-            parameters.append(level)
-        if subsystem is not None:
-            where_clauses.append("subsystem = ?")
-            parameters.append(subsystem)
-        if from_time is not None:
-            where_clauses.append("timestamp >= ?")
-            parameters.append(from_time)
+        if not log_path.exists():
+            return []
 
-        query = """
-            SELECT
-                id,
-                trace_id,
-                timestamp,
-                level,
-                subsystem,
-                action,
-                data,
-                duration_ms,
-                execution_id
-            FROM log_entries
-        """
-        if where_clauses:
-            query = f"{query} WHERE {' AND '.join(where_clauses)}"
-        query = f"{query} ORDER BY timestamp DESC LIMIT ?"
-        parameters.append(max(1, min(limit, 1000)))
+        matched_entries: list[dict[str, Any]] = []
+        with log_path.open("r", encoding="utf-8") as log_file:
+            for raw_line in log_file:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    parsed = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(parsed, dict):
+                    continue
+                if not _is_match(parsed, level, subsystem, from_time):
+                    continue
+                matched_entries.append(parsed)
 
-        async with aiosqlite.connect(DB_PATH) as database:
-            database.row_factory = aiosqlite.Row
-            cursor = await database.execute(query, tuple(parameters))
-            rows = await cursor.fetchall()
-
-        return [
-            {
-                "id": row["id"],
-                "trace_id": row["trace_id"],
-                "timestamp": row["timestamp"],
-                "level": row["level"],
-                "subsystem": row["subsystem"],
-                "action": row["action"],
-                "data": _decode_data(row["data"]),
-                "duration_ms": row["duration_ms"],
-                "execution_id": row["execution_id"],
-            }
-            for row in rows
-        ]
+        matched_entries.sort(key=lambda entry: str(entry.get("timestamp", "")), reverse=True)
+        return matched_entries[:max_limit]
     except Exception:
         return []

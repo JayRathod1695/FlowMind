@@ -1,18 +1,36 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import aiosqlite
 
-from config import DB_PATH
+from config import DB_PATH, LOG_FILE_PATH
 from log_service.log_stream import broadcast
 
 
 def _utc_timestamp() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+
+
+def _log_file_path() -> Path:
+    resolved = Path(LOG_FILE_PATH).expanduser()
+    if resolved.is_absolute():
+        return resolved
+    return Path(__file__).resolve().parents[1] / resolved
+
+
+def _append_json_line(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as log_file:
+        log_file.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
+_FILE_WRITE_LOCK = asyncio.Lock()
 
 
 async def write_log(
@@ -36,38 +54,26 @@ async def write_log(
             "duration_ms": duration_ms,
             "execution_id": execution_id,
         }
-        serialized_data = json.dumps(data) if data is not None else None
 
-        async with aiosqlite.connect(DB_PATH) as database:
-            await database.execute(
-                """
-                INSERT INTO log_entries (
-                    id,
-                    trace_id,
-                    timestamp,
-                    level,
-                    subsystem,
-                    action,
-                    data,
-                    duration_ms,
-                    execution_id
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    log_entry["id"],
-                    log_entry["trace_id"],
-                    log_entry["timestamp"],
-                    log_entry["level"],
-                    log_entry["subsystem"],
-                    log_entry["action"],
-                    serialized_data,
-                    log_entry["duration_ms"],
-                    log_entry["execution_id"],
-                ),
-            )
-            await database.commit()
+        async with _FILE_WRITE_LOCK:
+            await asyncio.to_thread(_append_json_line, _log_file_path(), log_entry)
 
         await broadcast(log_entry)
+    except Exception:
+        pass
+
+
+async def drop_legacy_log_table() -> None:
+    try:
+        async with aiosqlite.connect(DB_PATH) as database:
+            await database.executescript(
+                """
+                DROP INDEX IF EXISTS idx_log_entries_trace_id;
+                DROP INDEX IF EXISTS idx_log_entries_execution_id;
+                DROP INDEX IF EXISTS idx_log_entries_timestamp;
+                DROP TABLE IF EXISTS log_entries;
+                """
+            )
+            await database.commit()
     except Exception:
         pass

@@ -1,90 +1,104 @@
-import { memo } from 'react'
+import { Button } from "../ui/button";
+import { Card } from "../ui/card";
+import { CheckCircle2, XCircle, Link2, Link2Off } from "lucide-react";
 
-import ConnectorCardAction from '@/components/connectors/ConnectorCard.sub'
-import { cn } from '@/lib/utils'
-import type {
-  AvailableConnector,
-  ConnectorConnection,
-  ConnectorConnectionStatus,
-} from '@/types/connector.types'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+export type ConnectionStatus = "connected" | "disconnected" | "error";
 
-interface ConnectorCardProps {
-  connector: AvailableConnector
-  connection: ConnectorConnection | undefined
-  userId: string
+export interface ConnectorCardProps {
+  name: string;
+  icon: React.ReactNode;
+  status: ConnectionStatus;
+  accountLabel?: string;
+  errorMessage?: string;
+  onConnect?: () => void;
+  onDisconnect?: () => void;
 }
 
-interface ConnectionVisualState {
-  status: ConnectorConnectionStatus
-  dotClass: string
-  cardClass: string
-  label: string
-  labelClass?: string
-}
-
-const toVisualState = (connection: ConnectorConnection | undefined): ConnectionVisualState => {
-  if (!connection || connection.status === 'disconnected') {
-    return {
-      status: 'disconnected',
-      dotClass: 'bg-[#AFAFAF]',
-      cardClass: 'border-[#AFAFAF] bg-[#FFFFFF]',
-      label: 'Not connected',
-    }
-  }
-
-  if (connection.status === 'connecting') {
-    return {
-      status: 'connecting',
-      dotClass: 'bg-[#AFAFAF]',
-      cardClass: 'border-[#AFAFAF] bg-[#F3F3F3]',
-      label: 'Connecting...',
-    }
-  }
-
-  if (connection.status === 'error') {
-    return {
-      status: 'error',
-      dotClass: 'bg-[#DC2626]',
-      cardClass: 'border-[#FCA5A5] bg-[#FEF2F2]',
-      label: connection.error_message ?? 'Connection failed.',
-      labelClass: 'text-[#991B1B]',
-    }
-  }
-
-  return {
-    status: 'connected',
-    dotClass: 'bg-[#16A34A]',
-    cardClass: 'border-[#86EFAC] bg-[#F0FDF4]',
-    label: connection.connected_account_label ?? 'Connected',
-  }
-}
-
-function ConnectorCardComponent({ connector, connection, userId }: ConnectorCardProps) {
-  const visualState = toVisualState(connection)
+export function ConnectorCard({
+  name,
+  icon,
+  status,
+  accountLabel,
+  errorMessage,
+  onConnect,
+  onDisconnect,
+}: ConnectorCardProps) {
+  const isConnected = status === "connected";
+  const isError = status === "error";
 
   return (
-    <Card className={cn('h-full shadow-[0_4px_6px_rgba(0,0,0,0.1)] transition-colors duration-200', visualState.cardClass)}>
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-[#000000]">{connector.display_name}</CardTitle>
-        <p className="text-xs text-[#1F1F1F]">{connector.name}</p>
-      </CardHeader>
+    <Card className="p-0 border-2 border-border shadow-xs hover:shadow-sm transition-all group">
+      <div className="p-6 flex flex-col justify-between h-[200px]">
+        {/* Top Row */}
+        <div className="flex items-start justify-between">
+          <div className="w-12 h-12 bg-muted border-2 border-border flex items-center justify-center group-hover:scale-105 transition-transform">
+            {icon}
+          </div>
 
-      <CardContent>
-        <div className="flex min-h-5 items-center gap-2 text-sm">
-          <span className={cn('h-2.5 w-2.5 rounded-full', visualState.dotClass)} aria-hidden="true" />
-          <span className={cn('text-[#1F1F1F]', visualState.labelClass)}>{visualState.label}</span>
+          <div className="flex items-center gap-1.5 font-semibold text-xs">
+            {isConnected && (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-chart-4" />
+                <span className="text-chart-4">Connected</span>
+              </>
+            )}
+            {isError && (
+              <>
+                <XCircle className="w-3.5 h-3.5 text-destructive" />
+                <span className="text-destructive">Error</span>
+              </>
+            )}
+            {status === "disconnected" && (
+              <>
+                <div className="w-2 h-2 bg-muted-foreground/30" />
+                <span className="text-muted-foreground">Not connected</span>
+              </>
+            )}
+          </div>
         </div>
-      </CardContent>
 
-      <CardFooter>
-        <ConnectorCardAction connectorName={connector.name} status={visualState.status} userId={userId} />
-      </CardFooter>
+        {/* Name & Account */}
+        <div className="flex flex-col gap-1">
+          <h3 className="font-bold text-lg">{name}</h3>
+          {isConnected ? (
+            <span className="text-sm font-mono text-muted-foreground truncate pr-2">{accountLabel}</span>
+          ) : isError ? (
+            <span className="text-sm text-destructive font-medium">{errorMessage}</span>
+          ) : (
+            <span className="text-sm text-transparent h-5">&nbsp;</span>
+          )}
+        </div>
+
+        {/* Action */}
+        <div className="w-full">
+          {isConnected ? (
+            <Button
+              variant="outline"
+              className="w-full border-2 border-border shadow-2xs"
+              onClick={onDisconnect}
+            >
+              <Link2Off className="w-4 h-4 mr-2" />
+              Disconnect
+            </Button>
+          ) : isError ? (
+            <Button
+              variant="outline"
+              className="w-full border-2 border-destructive/30 text-destructive shadow-2xs"
+              onClick={onConnect}
+            >
+              Reconnect
+            </Button>
+          ) : (
+            <Button
+              className="w-full border-2 border-border shadow-sm"
+              onClick={onConnect}
+            >
+              <Link2 className="w-4 h-4 mr-2" />
+              Connect
+            </Button>
+          )}
+        </div>
+      </div>
     </Card>
-  )
+  );
 }
-
-const ConnectorCard = memo(ConnectorCardComponent)
-ConnectorCard.displayName = 'ConnectorCard'
-
-export default ConnectorCard

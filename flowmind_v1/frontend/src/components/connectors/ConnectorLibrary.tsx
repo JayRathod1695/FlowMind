@@ -1,93 +1,77 @@
-import { useCallback, useEffect, useState } from 'react'
+import { ConnectorCard, type ConnectionStatus } from "./ConnectorCard";
+import { GitPullRequest, Kanban, MessageSquare, Database, Mail } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "../ui/button";
+import { ArrowRight } from "lucide-react";
 
-import ConnectorCard from '@/components/connectors/ConnectorCard'
-import { Button } from '@/components/ui/button'
-import { useConnectorStatus } from '@/hooks/useConnectorStatus'
-import { ApiError } from '@/services/api.client'
-import { getAvailableConnectors } from '@/services/connector.service'
-import { useConnectorStore } from '@/store/connector.store'
-import type { AvailableConnector } from '@/types/connector.types'
+const MOCK_CONNECTORS = [
+  {
+    name: "Jira",
+    icon: <Kanban className="w-6 h-6" />,
+    status: "connected" as ConnectionStatus,
+    accountLabel: "john@acme.atlassian.net",
+  },
+  {
+    name: "GitHub",
+    icon: <GitPullRequest className="w-6 h-6" />,
+    status: "disconnected" as ConnectionStatus,
+  },
+  {
+    name: "Slack",
+    icon: <MessageSquare className="w-6 h-6" />,
+    status: "connected" as ConnectionStatus,
+    accountLabel: "@john-acme",
+  },
+  {
+    name: "Google Sheets",
+    icon: <Database className="w-6 h-6" />,
+    status: "error" as ConnectionStatus,
+    errorMessage: "Token expired",
+  },
+  {
+    name: "Gmail",
+    icon: <Mail className="w-6 h-6" />,
+    status: "disconnected" as ConnectionStatus,
+  },
+];
 
-const normalizeConnectorName = (connectorName: string): string => {
-  const normalized = connectorName.trim().toLowerCase()
-  return normalized === 'google' ? 'sheets' : normalized
-}
-
-const toErrorMessage = (error: unknown): string => {
-  if (error instanceof ApiError) return error.message
-  if (error instanceof Error) return error.message
-  return 'Unable to load connector library right now.'
-}
-
-function ConnectorLibrary() {
-  const [userId] = useState('default-user')
-  const connections = useConnectorStore((state) => state.connections)
-  const { isLoading: isStatusLoading, error: statusError, refresh } = useConnectorStatus(userId)
-
-  const [connectors, setConnectors] = useState<AvailableConnector[]>([])
-  const [isLibraryLoading, setIsLibraryLoading] = useState(true)
-  const [libraryError, setLibraryError] = useState<string | null>(null)
-
-  const loadConnectors = useCallback(async () => {
-    setIsLibraryLoading(true)
-    try {
-      setConnectors(await getAvailableConnectors())
-      setLibraryError(null)
-    } catch (requestError) {
-      setLibraryError(toErrorMessage(requestError))
-      setConnectors([])
-    } finally {
-      setIsLibraryLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void loadConnectors()
-  }, [loadConnectors])
-
-  const activeError = libraryError ?? statusError
+export function ConnectorLibrary() {
+  const navigate = useNavigate();
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="rounded-full border border-[#AFAFAF] bg-[#E5E5E5] px-3 py-1 font-medium text-[#1F1F1F]">
-          {isLibraryLoading ? 'Loading connectors...' : 'Connector library loaded'}
-        </span>
-        <span className="rounded-full border border-[#AFAFAF] bg-[#E5E5E5] px-3 py-1 font-medium text-[#1F1F1F]">
-          {isStatusLoading ? 'Syncing connection status...' : 'Connection polling active'}
-        </span>
-        {activeError ? <span className="rounded-full border border-[#DC2626] bg-[#FEE2E2] px-3 py-1 font-medium text-[#991B1B]">{activeError}</span> : null}
-        {activeError ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="border-[#AFAFAF] bg-[#FFFFFF] text-[#000000] transition-colors duration-200 hover:border-[#007AFF] hover:bg-[#E5E5E5]"
-            onClick={() => void Promise.all([loadConnectors(), refresh()])}
-          >
-            Retry
-          </Button>
-        ) : null}
+    <div className="w-full max-w-5xl mx-auto flex flex-col gap-6">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b-2 border-border pb-4">
+        <div>
+          <h2 className="text-2xl font-black tracking-tight">Connections</h2>
+          <p className="text-muted-foreground text-sm mt-1">
+            Connect your accounts to let FlowMind act on your behalf.
+          </p>
+        </div>
+        <Button
+          className="border-2 border-border shadow-sm"
+          onClick={() => navigate("/app/dag")}
+        >
+          Continue to Workflow
+          <ArrowRight className="w-4 h-4 ml-1.5" />
+        </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {connectors.map((connector) => (
+      {/* Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {MOCK_CONNECTORS.map((c, i) => (
           <ConnectorCard
-            key={connector.name}
-            connector={connector}
-            connection={connections[normalizeConnectorName(connector.name)]}
-            userId={userId}
+            key={i}
+            name={c.name}
+            icon={c.icon}
+            status={c.status}
+            accountLabel={c.accountLabel}
+            errorMessage={c.errorMessage}
+            onConnect={() => console.log("Connecting", c.name)}
+            onDisconnect={() => console.log("Disconnecting", c.name)}
           />
         ))}
       </div>
-
-      {!isLibraryLoading && connectors.length === 0 ? (
-        <p className="rounded-xl border border-[#AFAFAF] bg-[#E5E5E5] px-4 py-6 text-sm text-[#1F1F1F]">
-          No connectors are available right now.
-        </p>
-      ) : null}
-    </section>
-  )
+    </div>
+  );
 }
-
-export default ConnectorLibrary

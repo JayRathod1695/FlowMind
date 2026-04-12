@@ -1,76 +1,52 @@
-import type { NodeProps } from '@xyflow/react'
-import {
-  Bug,
-  GitBranch,
-  MessageSquare,
-  PlugZap,
-  Table2,
-  Workflow,
-  type LucideIcon,
-} from 'lucide-react'
+import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { Badge } from '../ui/badge';
+import { Card } from '../ui/card';
+import { Loader2, CheckCircle2 } from 'lucide-react';
 
-import type { DAGCanvasNode, DAGNodeStatus } from '@/components/dag/DAGCanvas.layout'
-import ConfidenceBadge from '@/components/shared/ConfidenceBadge'
-import { cn } from '@/lib/utils'
+export type CustomNodeData = {
+  label: string;
+  confidence?: number;
+  status?: 'pending' | 'running' | 'completed' | 'error';
+  service?: string;
+};
 
-const connectorIcons: Record<string, LucideIcon> = {
-  jira: Bug,
-  github: GitBranch,
-  slack: MessageSquare,
-  sheets: Table2,
-  google: Table2,
-}
-
-const ringClasses: Record<DAGNodeStatus, string> = {
-  pending: 'border-[#AFAFAF] text-[#1F1F1F]',
-  running: 'border-[#007AFF] text-[#007AFF] shadow-[0_0_0_3px_rgba(0,122,255,0.2)]',
-  success: 'border-[#16A34A] text-[#166534]',
-  failed: 'border-[#DC2626] text-[#991B1B]',
-}
-
-const dotClasses: Record<DAGNodeStatus, string> = {
-  pending: 'bg-[#AFAFAF]',
-  running: 'bg-[#007AFF]',
-  success: 'bg-[#16A34A]',
-  failed: 'bg-[#DC2626]',
-}
-
-const labelByStatus: Record<DAGNodeStatus, string> = {
-  pending: 'pending',
-  running: 'running',
-  success: 'success',
-  failed: 'failed',
-}
-
-const getConnectorIcon = (connectorName: string): LucideIcon => {
-  const normalized = connectorName.trim().toLowerCase()
-  return connectorIcons[normalized] ?? (normalized.includes('webhook') ? Workflow : PlugZap)
-}
-
-function DAGNode({ data }: NodeProps<DAGCanvasNode>) {
-  const Icon = getConnectorIcon(data.connector)
-  const isRunning = data.status === 'running'
+export function DAGNode({ data }: NodeProps) {
+  const customData = data as CustomNodeData;
+  const isRunning = customData.status === 'running';
+  const isCompleted = customData.status === 'completed';
 
   return (
-    <article className="w-[260px] rounded-xl border border-[#AFAFAF] bg-[#E5E5E5] p-4 shadow-[0_4px_6px_rgba(0,0,0,0.1)] transition-colors duration-200">
-      <div className="flex items-start gap-3">
-        <div className={cn('relative grid h-10 w-10 place-items-center rounded-xl border bg-[#FFFFFF]', ringClasses[data.status])}>
-          {isRunning ? <span className="absolute inset-0 rounded-xl border-2 border-[#007AFF]/60 animate-ping" aria-hidden="true" /> : null}
-          <Icon className="h-5 w-5" aria-hidden="true" />
+    <Card className={`relative min-w-[200px] p-0 border-2 transition-all ${
+      isRunning ? 'border-primary shadow-md' :
+      isCompleted ? 'border-chart-4 shadow-xs' : 'border-border shadow-2xs'
+    }`}>
+      <Handle type="target" position={Position.Top} className="w-3 h-3 bg-background border-2 border-border" />
+
+      <div className="p-4 flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-mono font-bold tracking-wider text-muted-foreground uppercase">
+            {customData.service || 'System'}
+          </span>
+          {isRunning && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+          {isCompleted && <CheckCircle2 className="w-4 h-4 text-chart-4" />}
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-[#000000]">{data.toolName}</p>
-          <p className="text-xs capitalize text-[#1F1F1F]">{data.connector}</p>
+
+        <div className="font-bold text-sm leading-tight">
+          {customData.label}
         </div>
-        <span className={cn('mt-1 h-2.5 w-2.5 rounded-full', dotClasses[data.status])} aria-label={`Step status: ${labelByStatus[data.status]}`} />
+
+        {customData.confidence !== undefined && (
+          <div className="mt-2 flex justify-end">
+            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border-2 ${
+              customData.confidence > 80 ? 'bg-chart-4/10 text-chart-4 border-chart-4/30' : 'bg-muted text-muted-foreground border-border'
+            }`}>
+              {customData.confidence}% Confidence
+            </Badge>
+          </div>
+        )}
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <ConfidenceBadge score={data.confidence} />
-        <span className="text-xs capitalize text-[#1F1F1F]">{labelByStatus[data.status]}</span>
-      </div>
-    </article>
-  )
+      <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-background border-2 border-border" />
+    </Card>
+  );
 }
-
-export default DAGNode
