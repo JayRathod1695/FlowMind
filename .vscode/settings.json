@@ -1,0 +1,7 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/flowmind_v1/backend/.venv/bin/python",
+  "python.terminal.activateEnvironment": true,
+  "python.venvFolders": [
+    "flowmind_v1/backend"
+  ]
+}

@@ -1,69 +1,51 @@
-import { Line, LineChart, ResponsiveContainer } from 'recharts'
+import { Card } from "../ui/card";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
 
-import StatusDot, { type StatusDotState } from '@/components/shared/StatusDot'
-import { Card, CardContent } from '@/components/ui/card'
-import { useConnectorStore } from '@/store/connector.store'
-import type { ConnectorConnectionStatus } from '@/types/connector.types'
+const MOCK_DATA = [
+  { time: '1', ms: 12 }, { time: '2', ms: 14 }, { time: '3', ms: 11 }, { time: '4', ms: 15 },
+  { time: '5', ms: 12 }, { time: '6', ms: 13 }, { time: '7', ms: 10 }, { time: '8', ms: 12 }
+];
 
-const CONNECTORS = [
-  { id: 'jira', label: 'Jira' },
-  { id: 'github', label: 'GitHub' },
-  { id: 'slack', label: 'Slack' },
-  { id: 'sheets', label: 'Google Sheets' },
-] as const
-
-const BASE_LATENCY: Record<(typeof CONNECTORS)[number]['id'], number> = { jira: 116, github: 92, slack: 104, sheets: 128 }
-
-const toDotState = (status: ConnectorConnectionStatus | undefined): StatusDotState => {
-  if (!status || status === 'disconnected') return 'unknown'
-  if (status === 'connecting') return 'degraded'
-  if (status === 'error') return 'down'
-  return 'healthy'
-}
-
-const buildLatency = (seed: number, connected: boolean) =>
-  Array.from({ length: 14 }, (_, index) => ({
-    index,
-    latency: connected ? Math.round(seed + (index % 4 - 1.5) * 6 + (index % 2) * 3) : 0,
-  }))
-
-function ConnectorGrid() {
-  const connections = useConnectorStore((state) => state.connections)
+export function ConnectorGrid() {
+  const connectors = [
+    { name: "Jira API", status: "healthy", avg: "12ms", color: "var(--chart-1)" },
+    { name: "GitHub API", status: "healthy", avg: "8ms", color: "var(--chart-2)" },
+    { name: "Slack API", status: "degraded", avg: "154ms", color: "var(--chart-3)" },
+    { name: "MCP Core Gateway", status: "healthy", avg: "4ms", color: "var(--primary)" },
+  ];
 
   return (
-    <section className="space-y-3 rounded-2xl border border-[#AFAFAF] bg-[#E5E5E5] p-4 shadow-[0_4px_6px_rgba(0,0,0,0.1)] md:p-5">
-      <h2 className="text-xl font-semibold text-[#000000]">Connector Health</h2>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {CONNECTORS.map((connector) => {
-          const status = connections[connector.id]?.status
-          const connected = status === 'connected'
-          const latencyPoints = buildLatency(BASE_LATENCY[connector.id], connected)
-          const avgLatency = connected ? Math.round(latencyPoints.reduce((sum, point) => sum + point.latency, 0) / latencyPoints.length) : null
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {connectors.map((c, i) => (
+        <div key={i} className="p-4 flex flex-col gap-2 relative overflow-hidden group border-2 border-border bg-card shadow-xs hover:shadow-sm transition-shadow">
+          <div className="flex items-center justify-between z-10">
+            <h4 className="font-bold">{c.name}</h4>
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 ${c.status === 'healthy' ? 'bg-chart-4 animate-pulse' : 'bg-accent'}`} />
+              <span className="text-sm font-semibold text-muted-foreground capitalize">{c.status}</span>
+            </div>
+          </div>
+          <div className="z-10">
+            <span className="text-2xl font-black tracking-tight">{c.avg}</span>
+            <span className="text-xs text-muted-foreground ml-1">avg latency</span>
+          </div>
 
-          return (
-            <Card key={connector.id} className="border border-[#AFAFAF] bg-[#FFFFFF] py-0 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-              <CardContent className="space-y-3 px-4 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#000000]">
-                    <StatusDot state={toDotState(status)} />
-                    {connector.label}
-                  </span>
-                  <span className="font-mono text-xs text-[#1F1F1F]">{avgLatency ? `${avgLatency} ms` : '-- ms'}</span>
-                </div>
-                <div className="h-12 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={latencyPoints}>
-                      <Line type="monotone" dataKey="latency" stroke={connected ? '#007AFF' : '#AFAFAF'} strokeWidth={2} dot={false} isAnimationActive={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-    </section>
-  )
+          <div className="absolute bottom-0 left-0 right-0 h-16 opacity-30 group-hover:opacity-60 transition-opacity">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={MOCK_DATA}>
+                <Area
+                  type="monotone"
+                  dataKey="ms"
+                  stroke={c.color}
+                  fill={c.color}
+                  fillOpacity={0.2}
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
-
-export default ConnectorGrid

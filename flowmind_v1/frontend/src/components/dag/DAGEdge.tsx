@@ -1,6 +1,6 @@
-import { BaseEdge, getBezierPath, type EdgeProps } from '@xyflow/react'
+import { getBezierPath, type EdgeProps } from '@xyflow/react';
 
-function DAGEdge({
+export function DAGEdge({
   id,
   sourceX,
   sourceY,
@@ -8,7 +8,9 @@ function DAGEdge({
   targetY,
   sourcePosition,
   targetPosition,
+  style = {},
   markerEnd,
+  data
 }: EdgeProps) {
   const [edgePath] = getBezierPath({
     sourceX,
@@ -17,35 +19,30 @@ function DAGEdge({
     targetX,
     targetY,
     targetPosition,
-  })
+  });
 
   return (
     <>
-      <BaseEdge
-        id={id}
-        path={edgePath}
-        markerEnd={markerEnd}
-        style={{ stroke: '#E5E5E5', strokeOpacity: 0.6, strokeWidth: 2 }}
-      />
       <path
+        id={id}
+        style={style}
+        className="react-flow__edge-path stroke-2 stroke-muted-foreground/50 transition-all hover:stroke-primary"
         d={edgePath}
-        fill="none"
         markerEnd={markerEnd}
-        stroke="#007AFF"
-        strokeDasharray="9 8"
-        strokeLinecap="round"
-        strokeWidth={2.2}
-      >
-        <animate
-          attributeName="stroke-dashoffset"
-          dur="900ms"
-          from="17"
-          repeatCount="indefinite"
-          to="0"
-        />
-      </path>
+      />
+      {data?.label && (
+        <text>
+          <textPath
+            href={`#${id}`}
+            style={{ fontSize: '10px' }}
+            startOffset="50%"
+            textAnchor="middle"
+            className="fill-muted-foreground font-mono font-medium"
+          >
+            {data.label as string}
+          </textPath>
+        </text>
+      )}
     </>
-  )
+  );
 }
-
-export default DAGEdge

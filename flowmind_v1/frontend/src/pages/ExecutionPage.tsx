@@ -1,52 +1,31 @@
-import { useParams } from 'react-router-dom'
+import { ExecutionPanel } from "../components/execution/ExecutionPanel";
+import { LogViewer } from "../components/logs/LogViewer";
+import { Button } from "../components/ui/button";
+import { RefreshCw, Download } from "lucide-react";
 
-import ApprovalGate from '@/components/execution/ApprovalGate'
-import ExecutionPanel from '@/components/execution/ExecutionPanel'
-import LogFilters from '@/components/logs/LogFilters'
-import LogViewer from '@/components/logs/LogViewer'
-import { useExecutionStream } from '@/hooks/useExecutionStream'
-import { useExecutionStore } from '@/store/execution.store'
-
-function ExecutionPage() {
-  const { id } = useParams<{ id: string }>()
-  const executionId = useExecutionStore((state) => state.executionId)
-  const isPaused = useExecutionStore((state) => state.isPaused)
-  const isRunning = useExecutionStore((state) => state.isRunning)
-  const activeExecutionId = id ?? executionId
-  const { isConnected } = useExecutionStream(activeExecutionId)
-
-  const executionStateLabel = isPaused ? 'Paused' : isRunning ? 'Running' : 'Complete'
-
+export default function ExecutionPage() {
   return (
-    <section className="space-y-6 text-[#000000]">
-      <header className="space-y-2">
-        <h1 className="text-4xl font-semibold tracking-tight text-[#000000]">Execution</h1>
-        <p className="text-[#1F1F1F]">Live workflow execution monitoring and approval control.</p>
-      </header>
-
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#AFAFAF] bg-[#E5E5E5] p-4 shadow-[0_4px_6px_rgba(0,0,0,0.1)]">
-        <span className="text-sm font-medium">Execution: {activeExecutionId ?? 'unknown'}</span>
-        <span className="rounded-full border border-[#AFAFAF] bg-[#FFFFFF] px-3 py-1 text-xs font-semibold text-[#000000]">
-          {executionStateLabel}
-        </span>
-        <span className={isConnected ? 'text-xs font-medium text-[#16A34A]' : 'text-xs font-medium text-[#D97706]'}>
-          {isConnected ? 'SSE connected' : 'SSE reconnecting...'}
-        </span>
+    <div className="w-full h-full overflow-y-auto p-6 md:p-8 flex flex-col gap-6">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b-2 border-border pb-4">
+        <div>
+          <h2 className="text-2xl font-black tracking-tight">Active Execution</h2>
+          <p className="text-muted-foreground text-sm mt-1">Monitoring live execution steps and system logs.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" className="border-2 border-border shadow-2xs">
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+            Refresh
+          </Button>
+          <Button variant="outline" className="border-2 border-border shadow-2xs">
+            <Download className="w-3.5 h-3.5 mr-1.5" />
+            Export Logs
+          </Button>
+        </div>
       </div>
 
-      {isPaused ? <ApprovalGate /> : null}
       <ExecutionPanel />
-
-      <section className="space-y-3 rounded-2xl border border-[#AFAFAF] bg-[#E5E5E5] p-4 shadow-[0_4px_6px_rgba(0,0,0,0.1)] md:p-6">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-[#000000]">Live Logs</h2>
-          <span className="text-xs text-[#1F1F1F]">Virtualized rendering</span>
-        </div>
-        <LogFilters />
-        <LogViewer className="h-[320px]" />
-      </section>
-    </section>
-  )
+      <LogViewer />
+    </div>
+  );
 }
-
-export default ExecutionPage

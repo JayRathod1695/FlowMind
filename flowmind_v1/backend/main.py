@@ -15,11 +15,12 @@ from gateway.router_health import router as health_router
 from gateway.router_logs import router as logs_router
 from gateway.router_workflow import router as workflow_router
 from health import health_service
-from log_service import write_log
+from log_service import drop_legacy_log_table, write_log
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+	await drop_legacy_log_table()
 	health_check_task = asyncio.create_task(health_service.run_health_checks())
 	await write_log("INFO", "gateway", "application_startup")
 	try:

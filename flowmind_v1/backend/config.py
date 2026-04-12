@@ -28,12 +28,16 @@ CORS_ALLOWED_ORIGINS: Final[list[str]] = _read_csv(
 DEBUG: Final[bool] = _read_bool("DEBUG", False)
 
 DB_PATH: Final[str] = _read_env("DB_PATH", "./flowmind.db")
+LOG_FILE_PATH: Final[str] = _read_env("LOG_FILE_PATH", "./flowmind.logs.jsonl")
 
 LLM_API_KEY: Final[str] = _read_env("LLM_API_KEY")
 LLM_BASE_URL: Final[str] = _read_env(
     "LLM_BASE_URL", "https://integrate.api.nvidia.com/v1"
 )
 LLM_MODEL: Final[str] = _read_env("LLM_MODEL", "qwen/qwen3.5-122b-a10b")
+LLM_STREAM_TERMINAL_ENABLED: Final[bool] = _read_bool(
+    "LLM_STREAM_TERMINAL_ENABLED", True
+)
 
 TOKEN_ENCRYPTION_KEY: Final[str] = _read_env("TOKEN_ENCRYPTION_KEY")
 

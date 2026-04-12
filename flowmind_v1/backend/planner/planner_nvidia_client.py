@@ -2,11 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from typing import Any
 
 import httpx
 
-from config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
+from config import (
+    LLM_API_KEY,
+    LLM_BASE_URL,
+    LLM_MODEL,
+    LLM_STREAM_TERMINAL_ENABLED,
+)
 from log_service import write_log
 
 
@@ -105,6 +111,24 @@ async def _log_stream_chunk(
     )
 
 
+def _print_stream_chunk_to_terminal(
+    action: str,
+    chunk_text: str,
+    attempt: int,
+) -> None:
+    if not LLM_STREAM_TERMINAL_ENABLED:
+        return
+    if not chunk_text.strip():
+        return
+
+    stream_type = "thinking" if action == "planner_stream_thinking" else "output"
+    print(
+        f"[planner_stream][attempt={attempt}][{stream_type}] {chunk_text}",
+        file=sys.stdout,
+        flush=True,
+    )
+
+
 async def request_planner_completion(prompt: str) -> str:
     if not LLM_API_KEY:
         raise LLMUnavailableError("LLM_API_KEY is not configured")
@@ -169,7 +193,17 @@ async def request_planner_completion(prompt: str) -> str:
                             thinking_text,
                             attempt,
                         )
+                        _print_stream_chunk_to_terminal(
+                            "planner_stream_thinking",
+                            thinking_text,
+                            attempt,
+                        )
                         await _log_stream_chunk(
+                            "planner_stream_output",
+                            answer_text,
+                            attempt,
+                        )
+                        _print_stream_chunk_to_terminal(
                             "planner_stream_output",
                             answer_text,
                             attempt,

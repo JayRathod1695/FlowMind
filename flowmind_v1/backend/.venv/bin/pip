@@ -1,4 +1,4 @@
-#!/Users/jayrathod/Desktop/flowmind/backend/.venv/bin/python3.11
+#!/Users/jayrathod/Desktop/FlowMind/flowmind_v1/backend/.venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys
