@@ -1,14 +1,14 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from "react-router-dom";
-import ConnectorsPage from "./pages/ConnectorsPage";
-import DAGPage from "./pages/DAGPage";
-import ExecutionPage from "./pages/ExecutionPage";
 import StatusPage from "./pages/StatusPage";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import SignUpPage from "./pages/SignUpPage";
+import PlanPage from "./pages/PlanPage";
+import ConversationPage from "./pages/ConversationPage";
+import ChatHistoryPage from "./pages/ChatHistoryPage";
+import HooksPage from "./pages/HooksPage";
 import { TooltipProvider } from "./components/ui/tooltip";
-import { LayoutGrid, Network, Activity, ScrollText, Home, ChevronLeft, ChevronRight } from "lucide-react";
-import HomePage from "./pages/HomePage";
+import { Network, Activity, Bot, ChevronLeft, ChevronRight, History, Webhook } from "lucide-react";
 import { ThemeToggle } from "./components/shared/ThemeToggle";
 import { useState } from "react";
 
@@ -17,17 +17,16 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
 
   const navItems = [
-    { to: "/app", icon: <Home className="w-[18px] h-[18px]" />, label: "Overview" },
-    { to: "/app/dag", icon: <Network className="w-[18px] h-[18px]" />, label: "Workflow" },
-    { to: "/app/execution", icon: <ScrollText className="w-[18px] h-[18px]" />, label: "Executions" },
-    { to: "/app/status", icon: <Activity className="w-[18px] h-[18px]" />, label: "Status" },
-    { to: "/app/connectors", icon: <LayoutGrid className="w-[18px] h-[18px]" />, label: "Integrations" },
+    { to: "/app", icon: <Bot className="w-4.5 h-4.5" />, label: "Conversation" },
+    { to: "/app/history", icon: <History className="w-4.5 h-4.5" />, label: "Chat History" },
+    { to: "/app/hooks", icon: <Webhook className="w-4.5 h-4.5" />, label: "Hooks" },
+    { to: "/app/status", icon: <Activity className="w-4.5 h-4.5" />, label: "Status" },
   ];
 
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden font-sans selection:bg-primary/20">
       {/* Sidebar */}
-      <aside className={`${collapsed ? 'w-[72px]' : 'w-[260px]'} border-r-2 border-border bg-sidebar flex flex-col py-6 transition-all duration-300 shrink-0 relative`}>
+      <aside className={`${collapsed ? 'w-18' : 'w-65'} border-r-2 border-border bg-sidebar flex flex-col py-6 transition-all duration-300 shrink-0 relative`}>
         {/* Logo */}
         <div className={`${collapsed ? 'px-4' : 'px-6'} mb-8 flex items-center gap-3`}>
           <div className="w-9 h-9 bg-primary flex items-center justify-center shrink-0 shadow-sm border-2 border-border">
@@ -63,8 +62,8 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
             <div className="w-full flex items-center gap-3 px-2">
               <div className="w-9 h-9 bg-muted shrink-0 overflow-hidden flex items-center justify-center text-muted-foreground text-xs font-bold border-2 border-border">U</div>
               <div className="flex flex-col flex-1 overflow-hidden">
-                <span className="text-[13px] font-semibold truncate">Arthur Hayes</span>
-                <span className="text-[11px] text-muted-foreground">Free Plan</span>
+                <span className="text-[13px] font-semibold truncate">User</span>
+                <span className="text-[11px] text-muted-foreground">FlowMind</span>
               </div>
             </div>
           )}
@@ -94,19 +93,19 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
 export function App() {
   return (
     <Router>
-      <TooltipProvider delayDuration={0}>
+      <TooltipProvider>
         <Routes>
-          {/* Public pages - no sidebar */}
+          {/* Public pages */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
 
-          {/* Dashboard routes - with sidebar */}
-          <Route path="/app" element={<DashboardLayout><HomePage /></DashboardLayout>} />
-          <Route path="/app/connectors" element={<DashboardLayout><ConnectorsPage /></DashboardLayout>} />
-          <Route path="/app/dag" element={<DashboardLayout><DAGPage /></DashboardLayout>} />
-          <Route path="/app/execution" element={<DashboardLayout><ExecutionPage /></DashboardLayout>} />
+          {/* Dashboard routes */}
+          <Route path="/app" element={<DashboardLayout><ConversationPage /></DashboardLayout>} />
+          <Route path="/app/history" element={<DashboardLayout><ChatHistoryPage /></DashboardLayout>} />
+          <Route path="/app/hooks" element={<DashboardLayout><HooksPage /></DashboardLayout>} />
           <Route path="/app/status" element={<DashboardLayout><StatusPage /></DashboardLayout>} />
+          <Route path="/app/plan/:planId" element={<DashboardLayout><PlanPage /></DashboardLayout>} />
         </Routes>
       </TooltipProvider>
     </Router>

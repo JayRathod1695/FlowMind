@@ -1,32 +1,31 @@
-import asyncio
 from contextlib import AsyncExitStack
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-def mcp_to_openai_tools(mcp_tools):
+def mcp_to_openai_tools(mcp_tools: list) -> list:
     return [
         {
             "type": "function",
             "function": {
-                "name": tool.name,
+                "name":        tool.name,
                 "description": tool.description,
-                "parameters": tool.inputSchema,
+                "parameters":  tool.inputSchema,
             },
         }
         for tool in mcp_tools
     ]
 
-async def load_all_servers(stack: AsyncExitStack, servers: dict):
-    all_tools  = []
+async def load_all_servers(stack: AsyncExitStack, servers: dict) -> tuple[list, dict, list]:
+    all_tools   = []
     tool_router = {}   # tool_name → (session, server_name)
-    failed     = []
+    failed      = []
 
     for server_name, cfg in servers.items():
         try:
             params = StdioServerParameters(
                 command=cfg["command"],
                 args=[a for a in cfg.get("args", []) if a is not None],
-                env=cfg.get("env", {}),
+                env={k: v for k, v in cfg.get("env", {}).items() if v is not None},
             )
             read, write = await stack.enter_async_context(stdio_client(params))
             session     = await stack.enter_async_context(ClientSession(read, write))
@@ -42,7 +41,6 @@ async def load_all_servers(stack: AsyncExitStack, servers: dict):
             print(f"  ✅ {server_name:<12} → {len(tools_result.tools)} tools")
 
         except Exception as e:
-            # If one server fails, skip it — don't crash everything
             print(f"  ❌ {server_name:<12} → failed ({str(e)[:60]})")
             failed.append(server_name)
 

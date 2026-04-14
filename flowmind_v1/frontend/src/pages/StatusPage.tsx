@@ -1,5 +1,6 @@
+import { useEffect, useMemo, useState } from "react";
+
 import { SystemMetrics } from "../components/status/SystemMetrics";
-import { ConnectorGrid } from "../components/status/ConnectorGrid";
 import { Button } from "../components/ui/button";
 import {
   Activity,
@@ -8,22 +9,145 @@ import {
   ArrowRightLeft,
   Bell,
   Settings,
-  Network,
-  Shield,
-  PieChart,
-  MoreHorizontal,
+  RefreshCw,
 } from "lucide-react";
 
+import {
+  getHealthStatus,
+  getAgentRuntimeStatus,
+  queryLogs,
+  type HealthStatus,
+  type AgentRuntimeStatus,
+  type LogQueryEntry,
+} from "@/lib/api";
+
+function formatBytes(byteCount: number): string {
+  if (byteCount < 1024) return `${byteCount} B`;
+  if (byteCount < 1024 * 1024) return `${(byteCount / 1024).toFixed(1)} KB`;
+  return `${(byteCount / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function StatusPage() {
+  const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [runtime, setRuntime] = useState<AgentRuntimeStatus | null>(null);
+  const [logs, setLogs] = useState<LogQueryEntry[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const loadData = async () => {
+    setIsRefreshing(true);
+    try {
+      const [healthData, runtimeData, logData] = await Promise.all([
+        getHealthStatus(),
+        getAgentRuntimeStatus(),
+        queryLogs({ limit: 200 }),
+      ]);
+      setHealth(healthData);
+      setRuntime(runtimeData);
+      setLogs(logData);
+    } catch {
+      // Keep existing data on error
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    const load = async () => {
+      try {
+        const [healthData, runtimeData, logData] = await Promise.all([
+          getHealthStatus(),
+          getAgentRuntimeStatus(),
+          queryLogs({ limit: 200 }),
+        ]);
+        if (!isMounted) return;
+        setHealth(healthData);
+        setRuntime(runtimeData);
+        setLogs(logData);
+      } catch {
+        // ignore
+      }
+    };
+    void load();
+    const intervalId = window.setInterval(() => void load(), 15000);
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  const uptimeStr = useMemo(() => {
+    const uptime = health?.uptime_seconds ?? 0;
+    if (uptime > 3600) return `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`;
+    if (uptime > 60) return `${Math.floor(uptime / 60)}m ${uptime % 60}s`;
+    return `${uptime}s`;
+  }, [health]);
+
+  const dashboardStats = useMemo(() => {
+    const dataBytes = logs.reduce((sum, entry) => sum + JSON.stringify(entry).length, 0);
+    const errorCount = logs.filter(e => e.level === "ERROR").length;
+
+    return [
+      {
+        title: "Agent Status",
+        value: health?.runtime_initialized ? "Ready" : "Loading",
+        trend: health?.runtime_initialized ? "All systems go" : "Initializing...",
+        isUp: health?.runtime_initialized ?? false,
+        icon: <Zap className="w-4 h-4" />,
+      },
+      {
+        title: "MCP Tools",
+        value: String(health?.tool_count ?? 0),
+        trend: `${health?.failed_servers?.length ?? 0} servers failed`,
+        isUp: (health?.tool_count ?? 0) > 0,
+        icon: <Activity className="w-4 h-4" />,
+      },
+      {
+        title: "Log Events",
+        value: logs.length.toLocaleString(),
+        trend: errorCount > 0 ? `${errorCount} errors` : "No errors",
+        isUp: errorCount === 0,
+        icon: <ArrowRightLeft className="w-4 h-4" />,
+      },
+      {
+        title: "Uptime",
+        value: uptimeStr,
+        trend: formatBytes(dataBytes) + " log data",
+        isUp: (health?.uptime_seconds ?? 0) > 0,
+        icon: <Database className="w-4 h-4" />,
+      },
+    ];
+  }, [health, logs, uptimeStr]);
+
+  const latencySeries = useMemo(() => {
+    const entries = logs
+      .filter((entry) => typeof entry.duration_ms === "number")
+      .slice(0, 12)
+      .reverse();
+    return entries.map((entry, index) => ({
+      label: `${index + 1}`,
+      value: Number(entry.duration_ms),
+    }));
+  }, [logs]);
+
   return (
     <div className="w-full h-full overflow-y-auto p-6 md:p-8 flex flex-col gap-8">
       {/* Header */}
       <div className="flex items-center justify-between border-b-2 border-border pb-6">
         <div>
-          <h1 className="text-2xl font-black tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">Real-time metrics and automation telemetry.</p>
+          <h1 className="text-2xl font-black tracking-tight">System Status</h1>
+          <p className="text-sm text-muted-foreground mt-1">Real-time agent health and system metrics.</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="border-2 border-border shadow-2xs"
+            onClick={() => void loadData()}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`w-4 h-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
           <Button variant="outline" size="icon" className="border-2 border-border shadow-2xs">
             <Bell className="w-4 h-4" />
           </Button>
@@ -33,125 +157,101 @@ export default function StatusPage() {
         </div>
       </div>
 
-      {/* 4 Stat Cards */}
+      {/* Stat Cards */}
       <div>
         <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Platform Metrics</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard title="Total Automations" value="110,512" trend="+11.01%" isUp icon={<Zap className="w-4 h-4" />} />
-          <StatCard title="Active Workflows" value="157,185" trend="+11.01%" isUp icon={<Activity className="w-4 h-4" />} />
-          <StatCard title="API Requests" value="59,103" trend="-3.22%" isUp={false} icon={<ArrowRightLeft className="w-4 h-4" />} />
-          <StatCard title="Data Processed" value="8,081 GB" trend="+11.01%" isUp icon={<Database className="w-4 h-4" />} />
+          {dashboardStats.map((stat) => (
+            <div key={stat.title} className="p-5 border-2 border-border bg-card shadow-xs hover:shadow-sm transition-shadow">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{stat.title}</span>
+                <div className="w-8 h-8 bg-muted border-2 border-border flex items-center justify-center text-primary">
+                  {stat.icon}
+                </div>
+              </div>
+              <div className="font-black text-2xl tracking-tight mb-2">{stat.value}</div>
+              <div className={`flex items-center gap-1.5 text-xs font-bold px-2 py-1 border-2 border-border w-fit ${
+                stat.isUp ? 'bg-chart-4/10 text-chart-4' : 'bg-destructive/10 text-destructive'
+              }`}>
+                <span className={`w-1.5 h-1.5 ${stat.isUp ? 'bg-chart-4' : 'bg-destructive'}`} />
+                {stat.trend}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Quick Actions</h2>
-        <div className="border-2 border-border bg-card shadow-xs p-6">
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-            <ActionButton color="bg-destructive/10" iconColor="text-destructive" icon={<Activity className="w-5 h-5" />} label="New Flow" />
-            <ActionButton color="bg-chart-4/10" iconColor="text-chart-4" icon={<Database className="w-5 h-5" />} label="Connectors" />
-            <ActionButton color="bg-primary/10" iconColor="text-primary" icon={<Shield className="w-5 h-5" />} label="Security" />
-            <ActionButton color="bg-accent/20" iconColor="text-accent-foreground" icon={<Zap className="w-5 h-5" />} label="Billing" />
-            <ActionButton color="bg-muted" iconColor="text-foreground" icon={<PieChart className="w-5 h-5" />} label="Reports" />
-            <ActionButton color="bg-chart-2/10" iconColor="text-chart-2" icon={<Settings className="w-5 h-5" />} label="Settings" />
-          </div>
-        </div>
-      </div>
-
-      {/* Charts Row */}
+      {/* Charts + Runtime */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Performance Chart */}
         <div className="lg:col-span-2 flex flex-col gap-3">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">System History</h2>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Request Latency</h2>
           <div className="border-2 border-border bg-card shadow-xs p-6">
-            <SystemMetrics />
+            <SystemMetrics points={latencySeries} />
           </div>
         </div>
 
-        {/* Allocation Donut */}
+        {/* Runtime Info */}
         <div className="lg:col-span-1 flex flex-col gap-3">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Allocation</h2>
-          <div className="border-2 border-border bg-card shadow-xs p-6 h-[400px] flex flex-col">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2 font-bold text-sm">
-                <PieChart className="w-4 h-4 text-primary" />
-                Usage Allocation
-              </div>
-              <button>
-                <MoreHorizontal className="w-5 h-5 text-muted-foreground hover:text-foreground transition-colors" />
-              </button>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Runtime Details</h2>
+          <div className="border-2 border-border bg-card shadow-xs p-6 space-y-4">
+            <div className="space-y-3">
+              <InfoRow label="Runtime" value={runtime?.runtime_initialized ? "● Initialized" : "○ Loading"} positive={runtime?.runtime_initialized} />
+              <InfoRow label="Tools Loaded" value={String(runtime?.tool_count ?? 0)} positive={(runtime?.tool_count ?? 0) > 0} />
+              <InfoRow label="Waiting Tasks" value={String(runtime?.waiting_task_count ?? 0)} positive />
+              {(runtime?.failed_servers?.length ?? 0) > 0 && (
+                <InfoRow label="Failed Servers" value={(runtime?.failed_servers ?? []).join(", ")} positive={false} />
+              )}
             </div>
-            <p className="text-sm text-muted-foreground mb-6">Resource distribution across integrations.</p>
 
-            {/* Donut visual */}
-            <div className="flex-1 flex items-center justify-center relative">
-              <div className="w-36 h-36 rounded-full border-[14px] border-chart-4 flex items-center justify-center relative" style={{
-                borderRightColor: 'var(--primary)',
-                borderTopColor: 'var(--destructive)',
-              }}>
-                <div className="text-center">
-                  <span className="block text-2xl font-black">100%</span>
+            {runtime?.waiting_tasks && runtime.waiting_tasks.length > 0 && (
+              <div className="border-t-2 border-border pt-3">
+                <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Queued Tasks</div>
+                {runtime.waiting_tasks.map((task) => (
+                  <div key={task.id} className="text-xs flex justify-between py-1">
+                    <span className="font-mono text-muted-foreground">{task.id}</span>
+                    <span className="font-semibold">{task.type}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Recent Logs */}
+          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mt-2">Recent Logs</h2>
+          <div className="border-2 border-border bg-card shadow-xs p-4 max-h-64 overflow-auto">
+            {logs.length === 0 ? (
+              <div className="text-xs text-muted-foreground">No logs yet</div>
+            ) : (
+              logs.slice(0, 20).map((entry) => (
+                <div key={entry.id} className="text-xs py-1.5 border-b border-border/40 last:border-0 flex items-start gap-2">
+                  <span className={`font-bold shrink-0 w-10 ${
+                    entry.level === "ERROR" ? "text-destructive" : entry.level === "WARN" ? "text-amber-500" : "text-muted-foreground"
+                  }`}>
+                    {entry.level}
+                  </span>
+                  <span className="text-muted-foreground shrink-0">{entry.subsystem}</span>
+                  <span className="font-medium truncate">{entry.action}</span>
+                  {entry.duration_ms != null && (
+                    <span className="text-muted-foreground ml-auto shrink-0">{entry.duration_ms}ms</span>
+                  )}
                 </div>
-              </div>
-
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col gap-3 text-sm">
-                <LegendItem color="bg-chart-4" label="Jira APIs" value="65%" />
-                <LegendItem color="bg-primary" label="GitHub" value="20%" />
-                <LegendItem color="bg-destructive" label="Slack" value="10%" />
-                <LegendItem color="bg-muted-foreground" label="Other" value="5%" />
-              </div>
-            </div>
+              ))
+            )}
           </div>
         </div>
       </div>
-
-      {/* Connector Health */}
-      <div>
-        <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Connector Health</h2>
-        <ConnectorGrid />
-      </div>
     </div>
   );
 }
 
-function StatCard({ title, value, trend, isUp, icon }: { title: string; value: string; trend: string; isUp: boolean; icon: React.ReactNode }) {
+function InfoRow({ label, value, positive }: { label: string; value: string; positive?: boolean }) {
   return (
-    <div className="p-5 border-2 border-border bg-card shadow-xs hover:shadow-sm transition-shadow group">
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{title}</span>
-        <div className="w-8 h-8 bg-muted border-2 border-border flex items-center justify-center text-primary">
-          {icon}
-        </div>
-      </div>
-      <div className="font-black text-2xl tracking-tight mb-2">{value}</div>
-      <div className={`flex items-center gap-1.5 text-xs font-bold px-2 py-1 border-2 border-border w-fit ${
-        isUp ? 'bg-chart-4/10 text-chart-4' : 'bg-destructive/10 text-destructive'
-      }`}>
-        <span className={`w-1.5 h-1.5 ${isUp ? 'bg-chart-4' : 'bg-destructive'}`} />
-        {trend} from last month
-      </div>
-    </div>
-  );
-}
-
-function ActionButton({ color, iconColor, icon, label }: { color: string; iconColor: string; icon: React.ReactNode; label: string }) {
-  return (
-    <div className="flex flex-col items-center gap-2 group cursor-pointer">
-      <div className={`w-14 h-14 ${color} border-2 border-border flex items-center justify-center group-hover:-translate-y-1 group-hover:shadow-sm transition-all ${iconColor}`}>
-        {icon}
-      </div>
-      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
-    </div>
-  );
-}
-
-function LegendItem({ color, label, value }: { color: string; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-2 w-28">
-      <span className={`w-2 h-2 ${color}`} />
-      <span className="text-muted-foreground flex-1 text-xs">{label}</span>
-      <span className="font-bold text-xs">{value}</span>
+    <div className="flex items-center justify-between text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={`font-semibold ${positive ? "text-chart-4" : positive === false ? "text-destructive" : ""}`}>
+        {value}
+      </span>
     </div>
   );
 }

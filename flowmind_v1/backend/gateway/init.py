@@ -1,1 +1,1 @@
-"""Gateway module scaffolding for Phase B1."""
+# Gateway package

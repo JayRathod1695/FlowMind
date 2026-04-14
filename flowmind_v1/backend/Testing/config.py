@@ -10,10 +10,20 @@ def _env(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
 
 
-BACKEND_DIR = Path(__file__).resolve().parents[1]
-VENV_PYTHON = str(BACKEND_DIR / ".venv" / "bin" / "python")
-VENV_DDG_SERVER = str(BACKEND_DIR / ".venv" / "bin" / "duckduckgo-mcp-server")
-GMAIL_RUNNER = str(Path(__file__).resolve().parent / "mcp_gmail_runner.py")
+def _env_any(*names: str, default: str = "") -> str:
+    for name in names:
+        value = _env(name)
+        if value:
+            return value
+    return default
+
+
+_BACKEND_ROOT = Path(__file__).resolve().parents[1]
+_TESTING_ROOT = Path(__file__).resolve().parent
+_DEFAULT_PYTHON_BIN = str(_BACKEND_ROOT / ".venv" / "bin" / "python")
+PYTHON_BIN = _env("FLOWMIND_PYTHON_BIN", _DEFAULT_PYTHON_BIN)
+if not Path(PYTHON_BIN).exists():
+    PYTHON_BIN = "python"
 
 MCP_SERVERS = {
 
@@ -37,17 +47,19 @@ MCP_SERVERS = {
 
     "jira": {
         "command": "npx",
-        "args": [
-            "-y",
-            "--package=mcp-atlassian",
-            "--package=jsdom",
-            "mcp-atlassian",
-        ],
+        "args": ["-y", "-p", "mcp-atlassian", "-p", "jsdom", "mcp-atlassian"],
         "env": {
-            "ATLASSIAN_BASE_URL": _env("ATLASSIAN_BASE_URL") or _env("JIRA_URL"),
-            "ATLASSIAN_EMAIL":    _env("ATLASSIAN_EMAIL") or _env("JIRA_EMAIL"),
-            "ATLASSIAN_API_TOKEN": _env("ATLASSIAN_API_TOKEN") or _env("JIRA_API_TOKEN"),
-            "PATH":               _env("PATH"),
+            "ATLASSIAN_BASE_URL": _env_any("ATLASSIAN_BASE_URL", "JIRA_URL"),
+            "ATLASSIAN_EMAIL":    _env_any("ATLASSIAN_EMAIL", "JIRA_EMAIL"),
+            "ATLASSIAN_API_TOKEN": _env_any("ATLASSIAN_API_TOKEN", "JIRA_API_TOKEN"),
+            "JIRA_URL":            _env("JIRA_URL"),
+            "JIRA_USERNAME":       _env("JIRA_EMAIL"),
+            "JIRA_API_TOKEN":      _env("JIRA_API_TOKEN"),
+            "NODE_ENV":            "production",
+            "LOG_LEVEL":           "error",
+            "NO_COLOR":            "1",
+            "FORCE_COLOR":         "0",
+            "PATH":                _env("PATH"),
         },
     },
 
@@ -82,11 +94,11 @@ MCP_SERVERS = {
     },
 
     "gmail": {
-        "command": VENV_PYTHON,
-        "args": [GMAIL_RUNNER],
+        "command": PYTHON_BIN,
+        "args": [str(_TESTING_ROOT / "gmail_mcp_server.py")],
         "env": {
-            "GMAIL_CREDENTIALS_PATH": _env("GMAIL_CREDENTIALS_PATH"),
-            "GMAIL_TOKEN_PATH":       _env("GMAIL_TOKEN_PATH"),
+            "GMAIL_CREDENTIALS_PATH": _env("GMAIL_CREDENTIALS_PATH", str(_BACKEND_ROOT / "gmail_credentials.json")),
+            "GMAIL_TOKEN_PATH":       _env("GMAIL_TOKEN_PATH", str(_BACKEND_ROOT / "token.json")),
             "PATH":                   _env("PATH"),
         },
     },
@@ -104,8 +116,8 @@ MCP_SERVERS = {
     },
 
     "duckduckgo": {
-        "command": VENV_DDG_SERVER,
-        "args": ["--transport", "stdio"],
+        "command": PYTHON_BIN,
+        "args": [str(_TESTING_ROOT / "duckduckgo_mcp_server.py")],
         "env": {
             "PATH": _env("PATH"),
         },

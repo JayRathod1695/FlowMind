@@ -5,7 +5,6 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from gateway.error_codes import INTERNAL_ERROR
 from gateway.response_helpers import error_response
 from log_service import write_log
 
@@ -14,6 +13,7 @@ def add_cors_middleware(app: FastAPI, allowed_origins: Sequence[str]) -> None:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(allowed_origins),
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -26,26 +26,23 @@ def add_request_logging_middleware(app: FastAPI) -> None:
         request: Request, call_next
     ) -> JSONResponse:
         started_at = time.monotonic()
-        await write_log(
-            "DEBUG",
-            "gateway",
-            "request_received",
-            {"method": request.method, "path": request.url.path},
-        )
         try:
             response = await call_next(request)
             duration_ms = int((time.monotonic() - started_at) * 1000)
-            await write_log(
-                "DEBUG",
-                "gateway",
-                "request_completed",
-                {
-                    "method": request.method,
-                    "path": request.url.path,
-                    "status_code": response.status_code,
-                },
-                duration_ms=duration_ms,
-            )
+
+            # Only log non-health requests to avoid noise
+            if request.url.path != "/api/health":
+                await write_log(
+                    "INFO",
+                    "gateway",
+                    "request_completed",
+                    {
+                        "method": request.method,
+                        "path": request.url.path,
+                        "status_code": response.status_code,
+                    },
+                    duration_ms=duration_ms,
+                )
             return response
         except Exception as error:
             duration_ms = int((time.monotonic() - started_at) * 1000)
@@ -79,4 +76,4 @@ def add_global_exception_handler(app: FastAPI) -> None:
                 "message": str(error),
             },
         )
-        return error_response(INTERNAL_ERROR, "Unexpected error", 500)
+        return error_response("INTERNAL_ERROR", "Unexpected error", 500)

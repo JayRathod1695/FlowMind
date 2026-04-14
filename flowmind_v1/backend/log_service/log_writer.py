@@ -2,15 +2,34 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import aiosqlite
-
-from config import DB_PATH, LOG_FILE_PATH
+from config import (
+    LOG_FILE_PATH,
+    LOG_TERMINAL_ENABLED,
+    LOG_TERMINAL_FORMAT,
+    LOG_TERMINAL_MIN_LEVEL,
+)
 from log_service.log_stream import broadcast
+
+
+_LEVEL_ORDER = {
+    "DEBUG": 10,
+    "INFO": 20,
+    "WARN": 30,
+    "WARNING": 30,
+    "ERROR": 40,
+}
+
+
+def _should_print_terminal(level: str) -> bool:
+    threshold = _LEVEL_ORDER.get(LOG_TERMINAL_MIN_LEVEL, _LEVEL_ORDER["INFO"])
+    current = _LEVEL_ORDER.get(level.upper(), _LEVEL_ORDER["INFO"])
+    return current >= threshold
 
 
 def _utc_timestamp() -> str:
@@ -28,6 +47,28 @@ def _append_json_line(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as log_file:
         log_file.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
+def _print_terminal_log(payload: dict[str, Any]) -> None:
+    if not LOG_TERMINAL_ENABLED:
+        return
+
+    level = str(payload.get("level") or "INFO")
+    if not _should_print_terminal(level):
+        return
+
+    if LOG_TERMINAL_FORMAT == "message":
+        timestamp = str(payload.get("timestamp") or "")
+        subsystem = str(payload.get("subsystem") or "gateway")
+        action = str(payload.get("action") or "event")
+        print(
+            f"[{timestamp}] {level} {subsystem} {action}",
+            file=sys.stdout,
+            flush=True,
+        )
+        return
+
+    print(json.dumps(payload, ensure_ascii=False), file=sys.stdout, flush=True)
 
 
 _FILE_WRITE_LOCK = asyncio.Lock()
@@ -58,22 +99,7 @@ async def write_log(
         async with _FILE_WRITE_LOCK:
             await asyncio.to_thread(_append_json_line, _log_file_path(), log_entry)
 
+        _print_terminal_log(log_entry)
         await broadcast(log_entry)
-    except Exception:
-        pass
-
-
-async def drop_legacy_log_table() -> None:
-    try:
-        async with aiosqlite.connect(DB_PATH) as database:
-            await database.executescript(
-                """
-                DROP INDEX IF EXISTS idx_log_entries_trace_id;
-                DROP INDEX IF EXISTS idx_log_entries_execution_id;
-                DROP INDEX IF EXISTS idx_log_entries_timestamp;
-                DROP TABLE IF EXISTS log_entries;
-                """
-            )
-            await database.commit()
     except Exception:
         pass

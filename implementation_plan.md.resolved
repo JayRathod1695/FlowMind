@@ -1,0 +1,129 @@
+# Fix Backend: Adopt Testing/ Logic, Fix Frontend Integration, Clean Up Logging
+
+## Problem Summary
+
+The `Testing/` folder contains the **working core logic**: user prompt → MCP tool loading → LLM plans with tools → LLM executes with tool calls → returns result. This works perfectly when run standalone.
+
+However, the main backend (`main.py`, `executor/`, `planner/`, `mcp_router/`) has a **completely different, broken execution pipeline**:
+
+1. **Two conflicting execution paths exist:**
+   - `/api/agent/run` → `executor/agent_runtime.py` — This uses the Testing-style direct LLM agent loop (ask LLM → tool calls → loop). This is close to correct but **the frontend never calls it**. 
+   - `/api/workflow/generate` → `planner/` → DAG generation → `/api/execution/start` → `executor/executor_service.py` → `mcp_router/` — This is the path the **frontend actually uses** (via `HomePage.tsx`). It generates a DAG, then tries to execute it step-by-step through `mcp_router/router_service.py` which uses **hardcoded connector handlers** (Jira, GitHub, Slack, Sheets) that require OAuth tokens — **NOT the MCP servers**. This is fundamentally broken.
+
+2. **The frontend flow is broken because:**
+   - `HomePage.tsx` calls `getAvailableConnectors()` → `generateWorkflowDag()` → `saveWorkflow()` → `startExecution()` — a 4-step pipeline spanning planner + executor
+   - The planner generates a DAG with tool names, but execution via `mcp_router` uses hardcoded API connectors, not MCP tool calls
+   - `_TOOL_CATALOG_TIMEOUT_SECONDS = 2.0` in the planner means it times out before MCP servers can load (they take 10-30s to start)
+   - The planner's DAG format doesn't match the actual MCP tool names the LLM would use
+
+3. **30+ second delay** caused by: MCP server initialization happening lazily on first request, blocking the HTTP response.
+
+4. **Logging is noisy** because:
+   - `LOG_TERMINAL_MIN_LEVEL=DEBUG` dumps everything to terminal
+   - Every HTTP request logs twice (middleware + each router handler both log `request_received`)
+   - The JSONL log file is 5.5MB of accumulated noise
+   - Planner stream chunks each generate a log entry
+
+## Root Cause
+
+The frontend should use the **same simple agent loop** from `Testing/github_agent.py` — send the user prompt + tools to the LLM, let it plan and execute with tool_calls in a single loop. The current architecture over-engineers this into planner → DAG → executor → mcp_router which doesn't work.
+
+## Proposed Changes
+
+The fix is to **simplify the backend to match the Testing logic**, keeping the frontend integration clean.
+
+### Core Strategy
+
+**Keep:** `main.py` (FastAPI), `gateway/` (routers, middleware, CORS), `mcp_client/` (loader), `log_service/`, `config.py`, `executor/agent_runtime.py` (the correct agent loop)
+
+**Remove/Gut:** `planner/` (separate DAG generation), `executor/executor_service.py` (DAG step-by-step runner), `mcp_router/` (hardcoded connector handlers), `connector_library/`, all the workflow/execution storage overhead
+
+**Fix Frontend:** Change `HomePage.tsx` to call `/api/agent/run` directly instead of the 4-step generate → save → start pipeline
+
+---
+
+### 1. Backend — Simplify the Agent Endpoint
+
+#### [MODIFY] [router_agent.py](file:///Users/jayrathod/Desktop/FlowMind/flowmind_v1/backend/gateway/router_agent.py)
+- This is already correct — it calls `run_agent()` from `executor/agent_runtime.py` which does the right thing
+- No changes needed
+
+#### [MODIFY] [agent_runtime.py](file:///Users/jayrathod/Desktop/FlowMind/flowmind_v1/backend/executor/agent_runtime.py)
+- Add a startup pre-initialization mechanism so MCP servers load at app boot, not on first request — **this fixes the 30s delay**
+- Remove the `_TOOL_CATALOG_TIMEOUT_SECONDS` problem entirely
+- Keep the agent loop exactly as-is (it already matches the Testing logic)
+
+#### [MODIFY] [main.py](file:///Users/jayrathod/Desktop/FlowMind/flowmind_v1/backend/main.py)
+- In the `lifespan` startup, trigger `_ensure_runtime()` eagerly so MCP servers are ready before any request arrives
+- Remove imports of: `executor_service`, `health_service`, `drop_legacy_log_table`
+- Remove routers: `workflow_router`, `execution_router`, `connectors_router` (these are the broken paths)
+- Keep: `agent_router`, `health_router`, `logs_router`, `webhooks_router`
+
+---
+
+### 2. Backend — Clean Up Logging
+
+#### [MODIFY] [.env](file:///Users/jayrathod/Desktop/FlowMind/flowmind_v1/backend/.env)
+- Change `LOG_TERMINAL_MIN_LEVEL=DEBUG` → `LOG_TERMINAL_MIN_LEVEL=INFO`
+- Change `LOG_TERMINAL_FORMAT=json` → `LOG_TERMINAL_FORMAT=message` (human-readable)
+
+#### [MODIFY] [middleware.py](file:///Users/jayrathod/Desktop/FlowMind/flowmind_v1/backend/gateway/middleware.py)
+- Change request logging from DEBUG to INFO level for completed requests only
+- Remove the duplicate `request_received` DEBUG log (each router handler already logs it)
+
+#### Truncate stale log file
+- Clear `flowmind.logs.jsonl` (5.5MB of old noise)
+
+---
+
+### 3. Frontend — Use Agent Endpoint Directly
+
+#### [MODIFY] [api.ts](file:///Users/jayrathod/Desktop/FlowMind/flowmind_v1/frontend/src/lib/api.ts)
+- Add a new `runAgent(prompt: string)` function that calls `POST /api/agent/run`
+- Keep existing functions for backward compat but they won't be used in the main flow
+
+#### [MODIFY] [HomePage.tsx](file:///Users/jayrathod/Desktop/FlowMind/flowmind_v1/frontend/src/pages/HomePage.tsx)
+- Replace the 4-step pipeline (`getAvailableConnectors → generateWorkflowDag → saveWorkflow → startExecution`) with a single `runAgent(prompt)` call
+- Display the agent's response (assistant_response + steps) inline on the page
+- Remove the redirect to ExecutionPage — show results directly
+
+---
+
+### 4. Backend — Remove Dead Code
+
+#### Files/modules to delete (no longer used after the above changes):
+- `planner/` entire directory — DAG generation is replaced by LLM agent loop
+- `executor/executor_service.py` — DAG step runner, no longer used
+- `executor/executor_service_helpers.py` — in-memory execution tracking
+- `executor/executor_service_storage.py` — SQLite execution storage
+- `executor/executor_runner.py` — step-by-step runner via mcp_router
+- `executor/executor_retry.py` — retry logic for mcp_router
+- `executor/executor_graph.py` — topological sort
+- `mcp_router/` entire directory — hardcoded connectors, replaced by MCP tool calls
+- `connector_library/` entire directory — OAuth token management
+- `gateway/router_workflow.py` — /api/workflow/* endpoints
+- `gateway/router_execution.py` — /api/execution/* endpoints
+- `gateway/router_connectors.py` — /api/connectors/* endpoints
+- `gateway/router_connectors_helpers.py` — OAuth helpers
+- `database.py` — SQLite setup
+- `migrations/` directory
+
+> [!IMPORTANT]
+> The `Testing/` folder is kept as-is (it's the reference implementation). The main backend adopts its logic through `executor/agent_runtime.py` which already has the same pattern.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+1. Start the backend: `cd backend && python -m uvicorn main:app --reload --port 8000`
+2. Test agent endpoint: `curl -X POST http://localhost:8000/api/agent/run -H "Content-Type: application/json" -d '{"prompt":"Search for FlowMind on the web"}'`
+3. Verify health: `curl http://localhost:8000/api/health`
+4. Start frontend: `cd frontend && npm run dev`
+5. Open browser, type a prompt, verify it responds quickly and shows results
+
+### Manual Verification
+- Confirm MCP servers load at startup (check terminal logs)
+- Confirm no 30s delay on first prompt
+- Confirm logs are clean and human-readable
+- Confirm frontend shows agent response inline
