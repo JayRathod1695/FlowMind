@@ -3,5 +3,6 @@
   "python.terminal.activateEnvironment": true,
   "python.venvFolders": [
     "flowmind_v1/backend"
-  ]
+  ],
+  "git.ignoreLimitWarning": true
 }

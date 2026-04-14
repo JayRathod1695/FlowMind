@@ -5,30 +5,55 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-class GenerateDAGRequest(BaseModel):
-	natural_language: str = Field(..., min_length=10, max_length=500)
-	available_connectors: list[str] = Field(..., min_length=1, max_length=10)
+class AgentRunRequest(BaseModel):
+	prompt: str = Field(..., min_length=1, max_length=4000)
 
 
-class StartExecutionRequest(BaseModel):
-	workflow_id: str = Field(..., min_length=1, max_length=120)
-	dag_json: dict[str, Any] = Field(default_factory=dict)
+class ConversationStartRequest(BaseModel):
+	prompt: str = Field(..., min_length=1, max_length=4000)
 
 
-class ApproveRequest(BaseModel):
-	step_id: str = Field(..., min_length=1, max_length=120)
-	approved: bool
+class ConversationMessageRequest(BaseModel):
+	message: str = Field(..., min_length=1, max_length=4000)
 
 
-class ConnectRequest(BaseModel):
-	user_id: str = Field(..., min_length=1, max_length=120)
+class ConversationMessage(BaseModel):
+	id: str
+	conversation_id: str
+	turn_index: int
+	role: str
+	content: str
+	metadata: dict[str, Any] = Field(default_factory=dict)
+	created_at: str
 
 
-class DisconnectRequest(BaseModel):
-	user_id: str = Field(..., min_length=1, max_length=120)
+class ConversationSession(BaseModel):
+	id: str
+	initial_prompt: str
+	state: str
+	assistant_message: str | None = None
+	plan_id: str | None = None
+	plan_json: dict[str, Any] | None = None
+	result_json: dict[str, Any] | None = None
+	can_proceed: bool = False
+	missing_info: list[str] = Field(default_factory=list)
+	planning_prompt: str | None = None
+	created_at: str
+	updated_at: str
+	completed_at: str | None = None
+	messages: list[ConversationMessage] = Field(default_factory=list)
+
+
+class ConversationTurnResponse(BaseModel):
+	conversation: ConversationSession
+	assistant_message: str
+	can_proceed: bool
+	missing_info: list[str] = Field(default_factory=list)
+	plan_id: str | None = None
+	plan: dict[str, Any] | None = None
 
 
 class FrontendLogRequest(BaseModel):
 	event: str = Field(..., min_length=1, max_length=120)
-	metadata: dict[str, Any] = Field(default_factory=dict)
+	metadata: dict = Field(default_factory=dict)
 	timestamp: str | None = None

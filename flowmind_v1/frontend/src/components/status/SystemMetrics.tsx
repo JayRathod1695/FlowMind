@@ -1,7 +1,16 @@
 import ReactECharts from 'echarts-for-react';
 import { useTheme } from '../theme-provider';
 
-export function SystemMetrics() {
+type MetricPoint = {
+  label: string;
+  value: number;
+};
+
+type SystemMetricsProps = {
+  points?: MetricPoint[];
+};
+
+export function SystemMetrics({ points = [] }: SystemMetricsProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -10,6 +19,9 @@ export function SystemMetrics() {
   const tooltipBg = isDark ? '#1a1a1a' : '#ffffff';
   const tooltipBorder = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
   const tooltipText = isDark ? '#fff' : '#000';
+
+  const seriesValues = points.length > 0 ? points.map((point) => point.value) : [];
+  const xLabels = points.length > 0 ? points.map((point) => point.label) : [];
 
   const option = {
     backgroundColor: 'transparent',
@@ -30,7 +42,7 @@ export function SystemMetrics() {
       {
         type: 'category',
         boundaryGap: false,
-        data: ['1h', '2h', '3h', '4h', '5h', '6h'],
+        data: xLabels,
         axisLine: { show: false },
         axisTick: { show: false },
         axisLabel: { color: axisColor, margin: 20 }
@@ -63,7 +75,7 @@ export function SystemMetrics() {
             }]
           }
         },
-        data: [120, 90, 80, 160, 240, 240]
+        data: seriesValues
       }
     ]
   };
@@ -80,6 +92,9 @@ export function SystemMetrics() {
       <div className="flex-1 w-[100%] min-h-0 relative -ml-4">
         <ReactECharts option={option} style={{ height: '100%', width: '105%' }} />
       </div>
+      {points.length === 0 && (
+        <p className="text-xs text-muted-foreground mt-2">No latency samples available yet.</p>
+      )}
     </div>
   );
 }

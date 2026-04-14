@@ -1,10 +1,10 @@
 fastapi==0.115.0
-uvicorn[standard]==0.30.6
+uvicorn[standard]>=0.31.1,<1
 python-dotenv==1.0.1
-pydantic==2.8.2
+pydantic>=2.8,<3
 httpx==0.27.2
 aiosqlite==0.20.0
-anyio==4.4.0
+anyio>=4.5,<5
 chromadb==0.5.5
 cryptography>=42.0.0
 jira==3.8.0
@@ -12,3 +12,7 @@ PyGithub>=2.0
 slack-sdk>=3.0
 gspread>=6.0
 google-auth
+duckduckgo-search>=8.1.1
+openai==2.31.0
+mcp==1.27.0
+langgraph>=1.0.0,<2
