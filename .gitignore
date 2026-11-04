@@ -1,2 +1,25 @@
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+token.json
+*credentials*.json
 
-flowmind_v1/backend/.env
+# Database & Logs
+*.db
+*.sqlite
+*.sqlite3
+*.logs.jsonl
+*.log
+
+# Python Virtual Environments & Caches
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+ENV/
+
+# System files
+.DS_Store
